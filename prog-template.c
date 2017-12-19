@@ -31,6 +31,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#define ROTATE_HIGH_SPEED_FACT 0.5
 #define PORT 20000
 #define LENGTH 512 
 //#define DEBUG 1
@@ -107,221 +108,8 @@ timeval_diff(struct timeval *difference,
 
 } /* timeval_diff() */
 
-/*!
-/*--------------------------------------------------------------------*/
 
-// #define for driver mode
-#define BIG_SPEED_FACTOR 25
-#define SPEED_FACTOR 1
-#define MAX_SPEED 1500
-#define MIN_SPEED 15
-#define DEFAULT_SPEED 200
-#define ROTATE_HIGH_SPEED_FACT 0.5
-#define ROTATE_LOW_SPEED_FACT 0.75
-#define ROT_SPEED_HIGH_TRESH 300
-#define STOP_TIME 100000 // us
-
-#define SIGN(x) ((x)>0?1:((x)<0?-1:0))  // sign or zero
-
-
-/*!
- * Drive the robot with the keyboard
- *
- * \param none
- *
- * \return an error code:
- *         - <0  standard error code. See errno.h
- *         - >=0 on success
- *
- */
-int drive_robot()
-{
-	int out=0,speed=DEFAULT_SPEED,vsl,vsr,anymove=0;
-	char c;
-	struct timeval startt,endt;
-
-	
-	kb_clrscr(); // erase screen
-	
-	printf("Drive the robot with the keyboard:\n  's' for stop\n  arrows (UP, DOWN, LEFT , RIGHT) for direction\n  PAGE UP/DOWN for changing speed  by small increments\n  Home/End for changing speed by big increments\n  'q' for going back to main menu\n");
-	
-	
-	printf("\ndefault parameters:\n  robot speed %d  (%5.1f mm/s)  (min %d, max %d)\n\n",DEFAULT_SPEED,DEFAULT_SPEED*KH4_SPEED_TO_MM_S,MIN_SPEED,MAX_SPEED);
-	
-	kb_change_term_mode(1); // change terminal mode for kbhit and getchar to return immediately
-	
-
-	kh4_SetMode(kh4RegSpeed,dsPic );
-	
-	gettimeofday(&startt,0x0);
-	
-	// loop until 'q' is pushed
-	while(!out)
-	{
-		if(kb_kbhit())
-		{
-			c=getchar();
-
-
-			// get special keys
-			if (c== 27  ) 
-			{
-			
-			 if (c=getchar()==91) // escape with [
-			 {
-				 c = getchar(); 
-			 
-				 switch(c)
-				 {
-					case 65: // UP arrow = forward
-							 kh4_set_speed(speed ,speed,dsPic );
-							anymove=1;						
-					break;
-					case 66: // DOWN arrow = backward			
-							 kh4_set_speed(-speed ,-speed,dsPic  );
-							anymove=1;
-					break;
-
-					case 68: // LEFT arrow = left
-							if (speed > ROT_SPEED_HIGH_TRESH) // at high speed, rotate too fast
-								 kh4_set_speed(-speed*ROTATE_HIGH_SPEED_FACT ,speed*ROTATE_HIGH_SPEED_FACT ,dsPic );
-							else
-								 kh4_set_speed(-speed*ROTATE_LOW_SPEED_FACT ,speed*ROTATE_LOW_SPEED_FACT ,dsPic );
-							anymove=1;	
-					break;
-
-					case 67: // RIGHT arrow = right
-							if (speed > ROT_SPEED_HIGH_TRESH) // at high speed, rotate too fast
-								 kh4_set_speed(speed*ROTATE_HIGH_SPEED_FACT ,-speed*ROTATE_HIGH_SPEED_FACT ,dsPic );
-							else
-								 kh4_set_speed(speed*ROTATE_LOW_SPEED_FACT ,-speed*ROTATE_LOW_SPEED_FACT ,dsPic );
-							anymove=1;	
-					break;
-
-					case 53: // PAGE UP  = speed up
-						speed+=SPEED_FACTOR;
-				 		if (speed>MAX_SPEED)
-				 		{
-							speed=MAX_SPEED;
-				 		};
-				 		c = getchar(); // get last character
-				 		
-				 		 kh4_get_speed(&vsl,&vsr,dsPic );
-				 		 kh4_set_speed(SIGN(vsl)*speed ,SIGN(vsr)*speed ,dsPic ); // set new speed, keeping direction with sign
-				 		printf("\033[1`\033[Krobot speed: %d (%5.1f mm/s)",speed,speed*KH4_SPEED_TO_MM_S); // move cursor to first column, erase line and print info
-				 		fflush(stdout); // make the display refresh
-				 		anymove=1;
-					break;
-
-					case 54: // PAGE DOWN = speed down
-						speed-=SPEED_FACTOR;
-				 		if (speed<MIN_SPEED)
-				 		{
-							speed=MIN_SPEED;
-				 		};
-				 		c = getchar(); // get last character
-				 		
-				 		kh4_get_speed(&vsl,&vsr,dsPic );
-				 		kh4_set_speed(SIGN(vsl)*speed ,SIGN(vsr)*speed,dsPic  ); // set new speed, keeping direction with sign
-				 		printf("\033[1`\033[Krobot speed: %d (%5.1f mm/s)",speed,speed*KH4_SPEED_TO_MM_S); // move cursor to first column, erase line and print info
-				 		fflush(stdout); // make the display refresh
-				 		anymove=1;
-					break;
-			
-
-					default:
-					break;
-					} // switch(c)
-				} // escape with [
-				else
-				{ // other special key code
-					
-					 c = getchar(); 
-					 
-					switch(c){
-				
-						case 72: // Home  = speed up
-							speed+=BIG_SPEED_FACTOR;
-					 		if (speed>MAX_SPEED)
-					 		{
-								speed=MAX_SPEED;
-					 		};
-					 		//c = getchar(); // get last character
-					 		
-					 		 kh4_get_speed(&vsl,&vsr,dsPic );
-					 		 kh4_set_speed(SIGN(vsl)*speed ,SIGN(vsr)*speed ,dsPic ); // set new speed, keeping direction with sign
-					 		printf("\033[1`\033[Krobot speed: %d (%5.1f mm/s)",speed,speed*KH4_SPEED_TO_MM_S); // move cursor to first column, erase line and print info
-					 		fflush(stdout); // make the display refresh
-					 		anymove=1;
-						break;
-
-						case 70: // End = speed down
-							speed-=BIG_SPEED_FACTOR;
-					 		if (speed<MIN_SPEED)
-					 		{
-								speed=MIN_SPEED;
-					 		};
-					 		//c = getchar(); // get last character
-					 		
-					 		kh4_get_speed(&vsl,&vsr,dsPic );
-					 		kh4_set_speed(SIGN(vsl)*speed ,SIGN(vsr)*speed,dsPic  ); // set new speed, keeping direction with sign
-					 		printf("\033[1`\033[Krobot speed: %d (%5.1f mm/s)",speed,speed*KH4_SPEED_TO_MM_S); // move cursor to first column, erase line and print info
-					 		fflush(stdout); // make the display refresh
-					 		anymove=1;
-						break;
-						
-						default:
-						break	;	
-						
-					}  
-			
-				} // ether special key code
-							
-				
-			} // if (c== '\027')	 
-			else 
-			{
-				switch(c)
-				{
-				 	case 'q': // quit to main menu
-				 		out=1;
-				   	break;
-					case 's': // stop motor
-						 kh4_set_speed(0,0,dsPic);
-					break;
-				   
-				 	default:
-				   break;
-				}
-		  }
-		  
-		  gettimeofday(&startt,0x0);
-		} else
-		{
-		
-			gettimeofday(&endt,0x0);;
-			// stop when no key is pushed after some time
-			
-			if (anymove &&  (timeval_diff(NULL,&endt,&startt)>STOP_TIME))
-			{
-				 kh4_set_speed(0 ,0,dsPic );
-				anymove=0;
-			}	
-				
-		}
-		
-
-		usleep(10000); // wait some ms
-	} // while
-
-	kb_change_term_mode(0); // switch to normal key input mode	
-	kh4_set_speed(0,0,dsPic );	 // stop robot
-	kh4_SetMode(kh4RegIdle,dsPic );
-	return 0;
-}
-
-
-
+go(int num1,int num2,double rotate);
 /*--------------------------------------------------------------------*/
 /*!
  * Main
@@ -344,7 +132,7 @@ int main(int argc , char * argv[])
   int i,n,type_of_test=0,sl,sr,pl,pr;
   short index, value,sensors[12],usvalues[5];
   char c;
-  long motspeed;
+  int motspeed=100;
   char line[80],l[9];
   int kp,ki,kd;
   int pmarg;
@@ -392,8 +180,6 @@ int main(int argc , char * argv[])
     printf("\r\nVersion = %c, Revision = %u\r\n",version,revision);        
   }
   
-
-// drive_robot();
   /* Variable Definition */
 	int sockfd; 
 	int nsockfd;
@@ -411,7 +197,7 @@ int main(int argc , char * argv[])
 	/* Fill the socket address struct */
 	remote_addr.sin_family = AF_INET; 
 	remote_addr.sin_port = htons(PORT); 
-	inet_pton(AF_INET, "192.168.1.105", &remote_addr.sin_addr); 
+	inet_pton(AF_INET, "192.168.1.117", &remote_addr.sin_addr); 
 	bzero(&(remote_addr.sin_zero), 8);
 
 	/* Try to connect the remote */
@@ -424,59 +210,71 @@ int main(int argc , char * argv[])
 		printf("[Client] Connected to server at port %d...ok!\n", PORT);
 kh4_SetRGBLeds(0,1,0,0,0,0,0,0,0,dsPic); // clear rgb leds because consumes energy
 
-	/* Send File to Server */
-	//if(!fork())
-	//{
-    
- 	if( recv(sockfd , server_reply , 2000 , 0) < 0)
+	// inicialize camera
+    int status = system("./aa.sh &");
+
+    //keep communicating with server
+    while(1)
+    {
+
+        if( recv(sockfd , server_reply , 2000 , 0) < 0)
         {
             puts("recv failed");
-         
+            break;
         }
+         
         puts("Server reply :");
         puts(server_reply);
 
 
-if (server_reply[0]=='t')
-
+if (strcmp(server_reply,"up")==0)
 {
-int status = system("./move");
+printf("przod");
+ go(motspeed,motspeed,1);
+//int status = system("./przod motspeed");
 
 }
-///////////////
-//Send some data
-printf("Enter message : ");
-        scanf("%s" , message);
-        if( send(sockfd , message , strlen(message) , 0) < 0)
-        {
-            puts("Send failed");
-            return 1;
-        }
-puts("Data Send");
+if (strcmp(server_reply,"down")==0)
+{
+printf("tyl");
+ go(-motspeed,-motspeed,1);
 
+}
+if (strcmp(server_reply,"left")==0)
+{
+
+printf("lewo");
+ go(-motspeed,motspeed,0.5);
+}
+if (strcmp(server_reply,"right")==0)
+{
+printf("prawo");
+ go(motspeed,-motspeed,ROTATE_HIGH_SPEED_FACT);
+}
+if (strcmp(server_reply,"speed")==0)
+{
+printf("speed");
+// memset(server_reply,0,255);
+//set speed
 if( recv(sockfd , server_reply , 2000 , 0) < 0)
         {
             puts("recv failed");
+            break;
+        }
          
-        }
-        puts("Server reply :");
-        puts(server_reply);
+      
+        motspeed=server_reply;
+        memset(server_reply,0,255);
+  puts("motspeed :");
+        puts(motspeed);
 
 
+}
+if (strcmp(server_reply,"file")==0)
+{
+////////send file
 
-
-/////////
-printf("Enter message : ");
-        scanf("%s" , message);
-        if( send(sockfd , message , strlen(message) , 0) < 0)
-        {
-            puts("Send failed");
-            return 1;
-        }
-puts("Data Send");
-/* 
-
-		char* fs_name = "/home/user/Desktop/9.txt";
+char* fs_name = "test.txt";
 		char sdbuf[LENGTH]; 
 		printf("[Client] Sending %s to the Server... ", fs_name);
 		FILE *fs = fopen(fs_name, "r");
@@ -498,48 +296,31 @@ puts("Data Send");
 		    bzero(sdbuf, LENGTH);
 		}
 		printf("Ok File %s from Client was Sent!\n", fs_name);
-\*
-	//}
 
-	/* Receive File from Server 
-	printf("[Client] Receiveing file from Server and saving it as final.txt...");
-	char* fr_name = "/home/user/Desktop/final.txt";
-	FILE *fr = fopen(fr_name, "a");
-	if(fr == NULL)
-		printf("File %s Cannot be opened.\n", fr_name);
-	else
-	{
-		bzero(revbuf, LENGTH); 
-		int fr_block_sz = 0;
-	    while((fr_block_sz = recv(sockfd, revbuf, LENGTH, 0)) > 0)
-	    {
-			int write_sz = fwrite(revbuf, sizeof(char), fr_block_sz, fr);
-	        if(write_sz < fr_block_sz)
-			{
-	            error("File write failed.\n");
-	        }
-			bzero(revbuf, LENGTH);
-			if (fr_block_sz == 0 || fr_block_sz != 512) 
-			{
-				break;
-			}
-		}
-		if(fr_block_sz < 0)
-        {
-			if (errno == EAGAIN)
-			{
-				printf("recv() timed out.\n");
-			}
-			else
-			{
-				fprintf(stderr, "recv() failed due to errno = %d\n", errno);
-			}
-		}
-	    printf("Ok received from server!\n");
-	    fclose(fr);
 
-	}
-*/
+
+/////////////
+
+}
+
+strcpy(message,"OK");
+
+//Send some data
+if( send(sockfd , message , strlen(message) , 0) < 0)
+{
+ puts("Send failed");
+ return 1;
+}
+
+ memset(server_reply,0,255);
+         
+        
+    }
+
+
+
+
+
 	close (sockfd);
 	printf("[Client] Connection lost.\n");
 	
@@ -549,4 +330,16 @@ puts("Data Send");
   kh4_SetRGBLeds(1,0,0,0,0,0,0,0,0,dsPic); // clear rgb leds because consumes energy
   
 	return 0;
+}
+ go(int num1,int num2,double rotate) {
+
+kh4_SetMode(kh4RegSpeed,dsPic );
+  kh4_set_speed(num1*rotate,num2*rotate,dsPic );
+
+			//anymove=1;	
+	usleep(100000);
+ kh4_set_speed(0 ,0 ,dsPic); // stop robot
+  kh4_SetMode( kh4RegIdle,dsPic ); // set motors to idle
+
+ 
 }
