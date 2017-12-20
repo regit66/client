@@ -118,7 +118,7 @@ int main(int argc, char * argv[]) {
 	int i, n, type_of_test = 0, sl, sr, pl, pr;
 	short index, value, sensors[12], usvalues[5];
 	char c;
-	int motspeed = 100;
+	int motorSpeed = 100;
 	char line[80], l[9];
 	int kp, ki, kd;
 	int pmarg;
@@ -166,8 +166,6 @@ int main(int argc, char * argv[]) {
 
 	/* Variable Definition */
 	int sockfd;
-	int nsockfd;
-	char revbuf[LENGTH];
 	struct sockaddr_in remote_addr;
 	char message[1000], server_reply[2000];
 	/* Get the Socket file descriptor */
@@ -193,10 +191,10 @@ int main(int argc, char * argv[]) {
 		exit(1);
 	} else
 		printf("[Client] Connected to server at port %d...ok!\n", PORT);
-	kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic); // clear rgb leds because consumes energy
+	kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic); // enable green diode when connect
 
-	// inicialize camera
-	int status = system("./aa.sh &");
+	// Initialize camera
+	system("./aa.sh &");
 
 	//keep communicating with server
 	while (1) {
@@ -211,41 +209,46 @@ int main(int argc, char * argv[]) {
 
 		if (strcmp(server_reply, "up") == 0) {
 			printf("przod");
-			go(motspeed, motspeed, 1);
-//int status = system("./przod motspeed");
+			go(motorSpeed, motorSpeed, 1);
 
 		}
 		if (strcmp(server_reply, "down") == 0) {
 			printf("tyl");
-			go(-motspeed, -motspeed, 1);
+			go(-motorSpeed, -motorSpeed, 1);
 
 		}
 		if (strcmp(server_reply, "left") == 0) {
 
 			printf("lewo");
-			go(-motspeed, motspeed, 0.5);
+			go(-motorSpeed, motorSpeed, ROTATE_HIGH_SPEED_FACT);
 		}
 		if (strcmp(server_reply, "right") == 0) {
 			printf("prawo");
-			go(motspeed, -motspeed, ROTATE_HIGH_SPEED_FACT);
+			go(motorSpeed, -motorSpeed, ROTATE_HIGH_SPEED_FACT);
 		}
 		if (strcmp(server_reply, "speed") == 0) {
 			printf("speed");
-// memset(server_reply,0,255);
-//set speed
+			memset(server_reply,0,255);
+			//sET SPEED
+	        if( send(sockfd , message , strlen(message) , 0) < 0)
+	        {
+	            puts("Send failed");
+	            return 1;
+	        }
 			if (recv(sockfd, server_reply, 2000, 0) < 0) {
 				puts("recv failed");
 				break;
 			}
 
-			motspeed = server_reply;
+			motorSpeed=server_reply;
 			memset(server_reply, 0, 255);
-			puts("motspeed :");
-			puts(motspeed);
+			//puts("motspeed :");
+			//puts(motorSpeed);
 
 		}
 		if (strcmp(server_reply, "file") == 0) {
-////////send file
+
+			//send file
 
 			char* fs_name = "test.txt";
 			char sdbuf[LENGTH];
@@ -268,8 +271,6 @@ int main(int argc, char * argv[]) {
 				bzero(sdbuf, LENGTH);
 			}
 			printf("Ok File %s from Client was Sent!\n", fs_name);
-
-/////////////
 
 		}
 
@@ -298,8 +299,6 @@ void go(int num1, int num2, double rotate) {
 
 	kh4_SetMode(kh4RegSpeed, dsPic);
 	kh4_set_speed(num1 * rotate, num2 * rotate, dsPic);
-
-	//anymove=1;
 	usleep(100000);
 	kh4_set_speed(0, 0, dsPic); // stop robot
 	kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
