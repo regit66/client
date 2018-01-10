@@ -96,7 +96,6 @@ long long timeval_diff(struct timeval *difference, struct timeval *end_time,
 
 } /* timeval_diff() */
 
-void battery();
 void go(int num1, int num2, double rotate);
 /*--------------------------------------------------------------------*/
 /*!
