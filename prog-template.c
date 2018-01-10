@@ -96,6 +96,7 @@ long long timeval_diff(struct timeval *difference, struct timeval *end_time,
 
 } /* timeval_diff() */
 
+void battery();
 void go(int num1, int num2, double rotate);
 /*--------------------------------------------------------------------*/
 /*!
@@ -118,7 +119,7 @@ int main(int argc, char * argv[]) {
 	int i, n, type_of_test = 0, sl, sr, pl, pr;
 	short index, value, sensors[12], usvalues[5];
 	char c;
-	int motorSpeed = 100;
+	int motorSpeed=100;
 	char line[80], l[9];
 	int kp, ki, kd;
 	int pmarg;
@@ -167,7 +168,7 @@ int main(int argc, char * argv[]) {
 	/* Variable Definition */
 	int sockfd;
 	struct sockaddr_in remote_addr;
-	char message[1000], server_reply[2000];
+	char message[1000], battery[1000], server_reply[2000];
 	/* Get the Socket file descriptor */
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr,
@@ -199,6 +200,17 @@ int main(int argc, char * argv[]) {
 	//keep communicating with server
 	while (1) {
 
+	kb_clrscr();
+	kh4_battery_status(Buffer,dsPic);
+
+	int battery=Buffer[3];
+	printf("%3d",Buffer[3]);
+
+
+ 
+ 
+
+
 		if (recv(sockfd, server_reply, 2000, 0) < 0) {
 			puts("recv failed");
 			break;
@@ -227,7 +239,7 @@ int main(int argc, char * argv[]) {
 			go(motorSpeed, -motorSpeed, ROTATE_HIGH_SPEED_FACT);
 		}
 		if (strcmp(server_reply, "speed") == 0) {
-			printf("speed");
+			printf("speed2");
 			memset(server_reply,0,255);
 			//sET SPEED
 	        if( send(sockfd , message , strlen(message) , 0) < 0)
@@ -235,22 +247,74 @@ int main(int argc, char * argv[]) {
 	            puts("Send failed");
 	            return 1;
 	        }
+
+
 			if (recv(sockfd, server_reply, 2000, 0) < 0) {
 				puts("recv failed");
 				break;
 			}
 
-			motorSpeed=server_reply;
+			sscanf(server_reply, "%d", &motorSpeed);
+		        //motorSpeed=server_reply;
+                       // printf(motorSpeed);
+                        //puts(motorSpeed);
 			memset(server_reply, 0, 255);
-			//puts("motspeed :");
-			//puts(motorSpeed);
+                        //return motorSpeed;
 
 		}
 		if (strcmp(server_reply, "file") == 0) {
 
 			//send file
 
-			char* fs_name = "test.txt";
+
+
+
+/////////////////
+
+kh4_proximity_ir(Buffer, dsPic);
+
+
+
+	char* fs_name = "test.csv";
+			FILE *file = freopen(fs_name, "w",stdout);
+for (i=0;i<12;i++)
+						{
+							sensors[i]=(Buffer[i*2] | Buffer[i*2+1]<<8);
+
+							n=(int)(sensors[i]*IR_BAR_LEN/1024.0);
+
+							if (n==0)
+								sprintf(bar[i],"|\33[%dC>|",IR_BAR_LEN-1);
+							else
+								if (n>=IR_BAR_LEN-1)
+									sprintf(bar[i],"|>\33[%dC|",IR_BAR_LEN-1);
+								else
+								 sprintf(bar[i],"|\33[%dC>\33[%dC|",IR_BAR_LEN-1-n,n);
+
+						 }
+
+			 printf("Proximity Sensors\ 
+						 \nback left      :; %4u;  \nleft           :; %4u\
+						 \nfront left     :; %4u;  \nfront          :; %4u\
+						 \nfront right    :; %4u;  \nright          :; %4u\
+						 \nback right     :; %4u;  \nback           :; %4u\
+						 \nground left    :; %4u;  \ngnd front left :; %4u\
+						 \ngnd front right:; %4u;  \nground right   :; %4u\n",
+							 sensors[0],  sensors[1],
+							 sensors[2],  sensors[3],
+							 sensors[4],  sensors[5],
+							 sensors[6],  sensors[7],
+							 sensors[8], sensors[9],
+							 sensors[10] ,sensors[11]
+							 );
+
+
+
+			//int results = fputs(Buffer, file);
+			//if (results == EOF) {
+    			// Failed to write do error code here.
+			//}
+			fclose(file);
 			char sdbuf[LENGTH];
 			printf("[Client] Sending %s to the Server... ", fs_name);
 			FILE *fs = fopen(fs_name, "r");
@@ -274,8 +338,8 @@ int main(int argc, char * argv[]) {
 
 		}
 
-		strcpy(message, "OK");
-
+		//strcpy(message, "OK");
+		sprintf(message, "%d", battery);
 //Send some data
 		if (send(sockfd, message, strlen(message), 0) < 0) {
 			puts("Send failed");
@@ -295,6 +359,8 @@ int main(int argc, char * argv[]) {
 
 	return 0;
 }
+
+
 void go(int num1, int num2, double rotate) {
 
 	kh4_SetMode(kh4RegSpeed, dsPic);
