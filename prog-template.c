@@ -33,7 +33,7 @@
 
 #define ROTATE_HIGH_SPEED_FACT 0.5
 #define PORT 20000
-#define LENGTH 512
+#define LENGTH 4096
 //#define DEBUG 1
 
 static knet_dev_t * dsPic; // robot pic microcontroller access
@@ -95,7 +95,11 @@ long long timeval_diff(struct timeval *difference, struct timeval *end_time,
 	return 1000000LL * difference->tv_sec + difference->tv_usec;
 
 } /* timeval_diff() */
-
+void proximitySensor(int i, char *Buffer, short *sensors, char* fs_name);
+void uaSensor(int i, char *Buffer, short *usvalues, char* fs_name);
+void ambientSensor(int i, char *Buffer, short *sensors, char* fs_name);
+void mottorSensor(char *Buffer, char* fs_name);
+void batterySensor(char *Buffer, char* fs_name);
 void go(int num1, int num2, double rotate);
 /*--------------------------------------------------------------------*/
 /*!
@@ -118,10 +122,11 @@ int main(int argc, char * argv[]) {
 	int i, n, type_of_test = 0, sl, sr, pl, pr;
 	short index, value, sensors[12], usvalues[5];
 	char c;
-	int motorSpeed=100;
+	int motorSpeed = 100;
 	char line[80], l[9];
 	int kp, ki, kd;
 	int pmarg;
+	char* fs_name = "data.csv";
 
 	// initiate libkhepera and robot access
 	if (kh4_init(argc, argv) != 0) {
@@ -167,7 +172,7 @@ int main(int argc, char * argv[]) {
 	/* Variable Definition */
 	int sockfd;
 	struct sockaddr_in remote_addr;
-	char message[1000], battery[1000], server_reply[2000];
+	char message[1000], server_reply[2000];
 	/* Get the Socket file descriptor */
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr,
@@ -191,7 +196,7 @@ int main(int argc, char * argv[]) {
 		exit(1);
 	} else
 		printf("[Client] Connected to server at port %d...ok!\n", PORT);
-	kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic); // enable green diode when connect
+	kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 1, 0, dsPic); // enable green diode when connect
 
 	// Initialize camera
 	system("./aa.sh &");
@@ -199,16 +204,11 @@ int main(int argc, char * argv[]) {
 	//keep communicating with server
 	while (1) {
 
-	kb_clrscr();
-	kh4_battery_status(Buffer,dsPic);
+		kh4_battery_status(Buffer, dsPic);
 
-	int battery=Buffer[3];
-	printf("%3d",Buffer[3]);
-
-
- 
- 
-
+		int battery = Buffer[3];
+		//printf("%3d",Buffer[3]);
+		sprintf(message, "%d", battery);
 
 		if (recv(sockfd, server_reply, 2000, 0) < 0) {
 			puts("recv failed");
@@ -217,6 +217,13 @@ int main(int argc, char * argv[]) {
 
 		puts("Server reply :");
 		puts(server_reply);
+
+		if (strcmp(server_reply, "stop") == 0) {
+			printf("stop");
+			kh4_set_speed(0, 0, dsPic); // stop robot
+			kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
+
+		}
 
 		if (strcmp(server_reply, "up") == 0) {
 			printf("przod");
@@ -238,15 +245,13 @@ int main(int argc, char * argv[]) {
 			go(motorSpeed, -motorSpeed, ROTATE_HIGH_SPEED_FACT);
 		}
 		if (strcmp(server_reply, "speed") == 0) {
-			printf("speed2");
-			memset(server_reply,0,255);
+			printf("speed");
+			memset(server_reply, 0, 255);
 			//sET SPEED
-	        if( send(sockfd , message , strlen(message) , 0) < 0)
-	        {
-	            puts("Send failed");
-	            return 1;
-	        }
-
+			if (send(sockfd, message, strlen(message), 0) < 0) {
+				puts("Send failed");
+				return 1;
+			}
 
 			if (recv(sockfd, server_reply, 2000, 0) < 0) {
 				puts("recv failed");
@@ -254,72 +259,92 @@ int main(int argc, char * argv[]) {
 			}
 
 			sscanf(server_reply, "%d", &motorSpeed);
-		        //motorSpeed=server_reply;
-                       // printf(motorSpeed);
-                        //puts(motorSpeed);
+
 			memset(server_reply, 0, 255);
-                        //return motorSpeed;
 
 		}
+
+
+		if (strcmp(server_reply, "diode") == 0) {
+			printf("diode");
+			memset(server_reply, 0, 255);
+			//sET SPEED
+			if (send(sockfd, message, strlen(message), 0) < 0) {
+				puts("Send failed");
+				return 1;
+			}
+
+			if (recv(sockfd, server_reply, 2000, 0) < 0) {
+				puts("recv failed");
+				break;
+			}
+
+			if (strcmp(server_reply, "red") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(1, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "blue") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(0, 0, 1, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "yellow") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(63, 63, 0, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "pink") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(30, 0, 10, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "purple") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(20, 0, 40, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "orange") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(63, 20, 0, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "green") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+			if (strcmp(server_reply, "white") == 0) {
+			//printf("set red diode");
+			
+			kh4_SetRGBLeds(60, 60, 60, 0, 0, 0, 0, 0, 0, dsPic);
+			}
+
+			if (send(sockfd, message, strlen(message), 0) < 0) {
+				puts("Send failed");
+				return 1;
+			}
+		}
+
+
+
+
 		if (strcmp(server_reply, "file") == 0) {
 
 			//send file
 
+			proximitySensor(i, Buffer, sensors, fs_name);
+			uaSensor(i, Buffer, usvalues, fs_name);
+			ambientSensor(i, Buffer, sensors, fs_name);
+			mottorSensor(Buffer, fs_name);
+			batterySensor(Buffer, fs_name);
 
-
-
-/////////////////
-
-kh4_proximity_ir(Buffer, dsPic);
-
-
-
-	char* fs_name = "test.csv";
-			FILE *file = freopen(fs_name, "w",stdout);
-for (i=0;i<12;i++)
-						{
-							sensors[i]=(Buffer[i*2] | Buffer[i*2+1]<<8);
-
-							n=(int)(sensors[i]*IR_BAR_LEN/1024.0);
-
-							if (n==0)
-								sprintf(bar[i],"|\33[%dC>|",IR_BAR_LEN-1);
-							else
-								if (n>=IR_BAR_LEN-1)
-									sprintf(bar[i],"|>\33[%dC|",IR_BAR_LEN-1);
-								else
-								 sprintf(bar[i],"|\33[%dC>\33[%dC|",IR_BAR_LEN-1-n,n);
-
-						 }
-
-			 printf("Proximity Sensors\ 
-						 \nback left      :; %4u;  \nleft           :; %4u\
-						 \nfront left     :; %4u;  \nfront          :; %4u\
-						 \nfront right    :; %4u;  \nright          :; %4u\
-						 \nback right     :; %4u;  \nback           :; %4u\
-						 \nground left    :; %4u;  \ngnd front left :; %4u\
-						 \ngnd front right:; %4u;  \nground right   :; %4u\n",
-							 sensors[0],  sensors[1],
-							 sensors[2],  sensors[3],
-							 sensors[4],  sensors[5],
-							 sensors[6],  sensors[7],
-							 sensors[8], sensors[9],
-							 sensors[10] ,sensors[11]
-							 );
-
-
-
-			//int results = fputs(Buffer, file);
-			//if (results == EOF) {
-    			// Failed to write do error code here.
-			//}
-			fclose(file);
 			char sdbuf[LENGTH];
 			printf("[Client] Sending %s to the Server... ", fs_name);
 			FILE *fs = fopen(fs_name, "r");
 			if (fs == NULL) {
 				printf("ERROR: File %s not found.\n", fs_name);
-				exit(1);
+				break;
 			}
 
 			bzero(sdbuf, LENGTH);
@@ -337,8 +362,8 @@ for (i=0;i<12;i++)
 
 		}
 
-		//strcpy(message, "OK");
-		sprintf(message, "%d", battery);
+		kb_clrscr();
+
 //Send some data
 		if (send(sockfd, message, strlen(message), 0) < 0) {
 			puts("Send failed");
@@ -354,18 +379,141 @@ for (i=0;i<12;i++)
 
 	kh4_set_speed(0, 0, dsPic); // stop robot
 	kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
-	kh4_SetRGBLeds(1, 0, 0, 0, 0, 0, 0, 0, 0, dsPic); // clear rgb leds because consumes energy
+	kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 1, 0, 0, dsPic); // clear rgb leds because consumes energy
 
 	return 0;
 }
 
+void proximitySensor(int i, char *Buffer, short *sensors, char* fs_name) {
 
+	FILE *file = fopen(fs_name, "w+");
+	if (file == NULL) {
+		printf("Error opening file!\n");
+		exit(1);
+	}
+	kh4_proximity_ir(Buffer, dsPic);
+	for (i = 0; i < 12; i++) {
+		sensors[i] = (Buffer[i * 2] | Buffer[i * 2 + 1] << 8);
+
+	}
+	fprintf(file,
+			"Proximity Sensors\ 
+			\nback left :; %4u; \nleft :; %4u\
+ \nfront left :; %4u; \nfront :; %4u\
+ \nfront right :; %4u; \nright :; %4u\
+ \nback right :; %4u; \nback :; %4u\
+ \nground left :; %4u; \ngnd front left :; %4u\
+ \ngnd front right:; %4u; \nground right :; %4u\n",
+			sensors[0], sensors[1], sensors[2], sensors[3], sensors[4],
+			sensors[5], sensors[6], sensors[7], sensors[8], sensors[9],
+			sensors[10], sensors[11]);
+
+	fclose(file);
+}
+
+void uaSensor(int i, char *Buffer, short *usvalues, char* fs_name) {
+
+	FILE *file = fopen(fs_name, "a+");
+	if (file == NULL) {
+		printf("Error opening file!\n");
+		exit(1);
+	}
+	kh4_measure_us(Buffer, dsPic);
+	for (i = 0; i < 5; i++) {
+		usvalues[i] = (short) (Buffer[i * 2] | Buffer[i * 2 + 1] << 8);
+
+	}
+	fprintf(file, "\n");
+	fprintf(file,
+			"\nUS sensors : distance [cm]\
+							  \nleft 90:; %4d;\nleft 45:; %4d;\
+							  \nfront:; %4d;\nright 45:; %4d;\nright 90:; %4d;\n",
+			usvalues[0], usvalues[1], usvalues[2], usvalues[3], usvalues[4]);
+	fclose(file);
+}
+
+void ambientSensor(int i, char *Buffer, short *sensors, char* fs_name) {
+
+	FILE *file = fopen(fs_name, "a+");
+	if (file == NULL) {
+		printf("Error opening file!\n");
+		exit(1);
+	}
+	kh4_ambiant_ir(Buffer, dsPic);
+	for (i = 0; i < 12; i++) {
+		sensors[i] = (Buffer[i * 2] | Buffer[i * 2 + 1] << 8);
+
+	}
+	fprintf(file, "\n");
+	fprintf(file,
+			"Ambiant Sensors\
+						 \nback left      :; %4.4u;  \nleft           :; %4.4u\
+						 \nfront left     :; %4.4u;  \nfront          :;%4.4u\
+						 \nfront right    :; %4.4u;  \nright          :; %4.4u\
+						 \nback right     :; %4.4u;  \nback           :; %4.4u\
+						 \nground left    :; %4.4u;  \ngnd front left :; %4.4u\
+						 \ngnd front right:; %4.4u;  \nground right   :; %4.4u\n",
+			sensors[0], sensors[1], sensors[2], sensors[3], sensors[4],
+			sensors[5], sensors[6], sensors[7], sensors[8], sensors[9],
+			sensors[10], sensors[11]);
+	fclose(file);
+}
+
+void mottorSensor(char *Buffer, char* fs_name) {
+
+	FILE *file = fopen(fs_name, "a+");
+	if (file == NULL) {
+		printf("Error opening file!\n");
+		exit(1);
+	}
+
+	int sl, sr, pl, pr;
+	kh4_get_speed(&sl, &sr, dsPic);
+	kh4_get_position(&pl, &pr, dsPic);
+	fprintf(file, "\nmotor speed and position");
+	fprintf(file,
+			"motors speed [mm/s (pulse/)]:; left:; %7.1f;  (%5d)  | right:; %7.1f; (%5d)\n",
+			sl * KH4_SPEED_TO_MM_S, sl, sr * KH4_SPEED_TO_MM_S, sr);
+	fprintf(file,
+			"motors position [mm (pulse)]:; left:; %7.1f; (%7d) | right:; %7.1f; (%7d)\n",
+			pl * KH4_PULSE_TO_MM, pl, pr * KH4_PULSE_TO_MM, pr);
+
+	fclose(file);
+}
+
+void batterySensor(char *Buffer, char* fs_name) {
+
+	FILE *file = fopen(fs_name, "a+");
+	if (file == NULL) {
+		printf("Error opening file!\n");
+		exit(1);
+	}
+
+	kh4_battery_status(Buffer, dsPic);
+	fprintf(file, "\n");
+	fprintf(file, "Battery:\n  status (DS2781)   :;  0x%x\n", Buffer[0]);
+	fprintf(file, "  remaining capacity:;  %4.0f mAh\n",
+			(Buffer[1] | Buffer[2] << 8) * 1.6);
+	fprintf(file, "  remaining capacity:;   %3d %%\n", Buffer[3]);
+	fprintf(file, "  current           :; %4.0f mA\n",
+			(short) (Buffer[4] | Buffer[5] << 8) * 0.07813);
+	fprintf(file, "  average current   :;  %4.0f mA\n",
+			(short) (Buffer[6] | Buffer[7] << 8) * 0.07813);
+	fprintf(file, "  temperature       :;  %3.1f C \n",
+			(short) (Buffer[8] | Buffer[9] << 8) * 0.003906);
+	fprintf(file, "  voltage           :;  %4.0f mV \n",
+			(Buffer[10] | Buffer[11] << 8) * 9.76);
+	fprintf(file, "  charger           :;  %s\n",
+			kh4_battery_charge(dsPic) ? "plugged" : "unplugged");
+
+	fclose(file);
+}
 void go(int num1, int num2, double rotate) {
 
 	kh4_SetMode(kh4RegSpeed, dsPic);
 	kh4_set_speed(num1 * rotate, num2 * rotate, dsPic);
-	usleep(100000);
-	kh4_set_speed(0, 0, dsPic); // stop robot
-	kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
+	//usleep(100000);
+	//kh4_set_speed(0, 0, dsPic); // stop robot
+	//kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
 
 }
