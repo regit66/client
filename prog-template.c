@@ -34,6 +34,7 @@
 #define ROTATE_HIGH_SPEED_FACT 0.5
 #define PORT 20000
 #define LENGTH 4096
+
 //#define DEBUG 1
 
 static knet_dev_t * dsPic; // robot pic microcontroller access
@@ -101,6 +102,7 @@ void ambientSensor(int i, char *Buffer, short *sensors, char* fs_name);
 void mottorSensor(char *Buffer, char* fs_name);
 void batterySensor(char *Buffer, char* fs_name);
 void go(int num1, int num2, double rotate);
+void diodeControl(int nr, char *color);
 /*--------------------------------------------------------------------*/
 /*!
  * Main
@@ -199,15 +201,13 @@ int main(int argc, char * argv[]) {
 	kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 1, 0, dsPic); // enable green diode when connect
 
 	// Initialize camera
-	system("./aa.sh &");
+	system("./camera.sh &");
 
 	//keep communicating with server
 	while (1) {
 
 		kh4_battery_status(Buffer, dsPic);
-
 		int battery = Buffer[3];
-		//printf("%3d",Buffer[3]);
 		sprintf(message, "%d", battery);
 
 		if (recv(sockfd, server_reply, 2000, 0) < 0) {
@@ -225,11 +225,60 @@ int main(int argc, char * argv[]) {
 
 		}
 
+		if (strcmp(server_reply, "runscript") == 0) {
+			printf("script_run");
+			system("./script.sh &");
+		}
+		if (strcmp(server_reply, "loadscript") == 0) {
+			printf("load cript");
+
+			printf(
+					"[Client] Receiveing file from Server and saving it as final.txt...");
+			char revbuf[LENGTH];
+			char* fr_name = "script.sh";
+			FILE *fr = fopen(fr_name, "a");
+			if (fr == NULL)
+				printf("File %s Cannot be opened.\n", fr_name);
+			else {
+				bzero(revbuf, LENGTH);
+				int fr_block_sz = 0;
+				while ((fr_block_sz = recv(sockfd, revbuf, LENGTH, 0)) > 0) {
+					int write_sz = fwrite(revbuf, sizeof(char), fr_block_sz,
+							fr);
+					if (write_sz < fr_block_sz) {
+						error("File write failed.\n");
+					}
+					bzero(revbuf, LENGTH);
+					if (fr_block_sz == 0 || fr_block_sz != 512) {
+						break;
+					}
+				}
+				if (fr_block_sz < 0) {
+					if (errno == EAGAIN) {
+						printf("recv() timed out.\n");
+					} else {
+						fprintf(stderr, "recv() failed due to errno = %d\n",
+								errno);
+					}
+				}
+				printf("Ok received from server!\n");
+				fclose(fr);
+
+			}
+
+		}
+
+		if (strcmp(server_reply, "line") == 0) {
+			printf("line");
+			//line_following(message, sockfd ,server_reply);
+		}
+
 		if (strcmp(server_reply, "up") == 0) {
 			printf("przod");
 			go(motorSpeed, motorSpeed, 1);
 
 		}
+
 		if (strcmp(server_reply, "down") == 0) {
 			printf("tyl");
 			go(-motorSpeed, -motorSpeed, 1);
@@ -264,7 +313,6 @@ int main(int argc, char * argv[]) {
 
 		}
 
-
 		if (strcmp(server_reply, "diode") == 0) {
 			printf("diode");
 			memset(server_reply, 0, 255);
@@ -278,58 +326,38 @@ int main(int argc, char * argv[]) {
 				puts("recv failed");
 				break;
 			}
+			int nr;
+			sscanf(server_reply, "%d", &nr);
 
-			if (strcmp(server_reply, "red") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(1, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "blue") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(0, 0, 1, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "yellow") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(63, 63, 0, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "pink") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(30, 0, 10, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "purple") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(20, 0, 40, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "orange") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(63, 20, 0, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "green") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic);
-			}
-			if (strcmp(server_reply, "white") == 0) {
-			//printf("set red diode");
-			
-			kh4_SetRGBLeds(60, 60, 60, 0, 0, 0, 0, 0, 0, dsPic);
-			}
+			memset(server_reply, 0, 255);
+			printf("diodanr");
+			printf("%d", nr);
+
+			/////////get diode nr
 
 			if (send(sockfd, message, strlen(message), 0) < 0) {
 				puts("Send failed");
 				return 1;
 			}
+
+			if (recv(sockfd, server_reply, 2000, 0) < 0) {
+				puts("recv failed");
+				break;
+			}
+			///////////
+			//	ktora dioda
+
+			//kolor
+			printf(server_reply);
+			diodeControl(nr, server_reply);
+			//if (send(sockfd, message, strlen(message), 0) < 0) {
+			//	puts("Send failed");
+			//return 1;
+			//}
+
 		}
 
-
-
-
-		if (strcmp(server_reply, "file") == 0) {
+		if (strcmp(server_reply, "alldata") == 0) {
 
 			//send file
 
@@ -397,8 +425,8 @@ void proximitySensor(int i, char *Buffer, short *sensors, char* fs_name) {
 
 	}
 	fprintf(file,
-			"Proximity Sensors\ 
-			\nback left :; %4u; \nleft :; %4u\
+			"Proximity Sensors\
+ \nback left :; %4u; \nleft :; %4u\
  \nfront left :; %4u; \nfront :; %4u\
  \nfront right :; %4u; \nright :; %4u\
  \nback right :; %4u; \nback :; %4u\
@@ -516,4 +544,153 @@ void go(int num1, int num2, double rotate) {
 	//kh4_set_speed(0, 0, dsPic); // stop robot
 	//kh4_SetMode(kh4RegIdle, dsPic); // set motors to idle
 
+}
+
+void diodeControl(int nr, char *color) {
+	if (nr == 1) {
+		if (strcmp(color, "off") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+
+		if (strcmp(color, "red") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(1, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "blue") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 1, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "yellow") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(63, 63, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "pink") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(30, 0, 10, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "purple") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(20, 0, 40, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "orange") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(63, 20, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "green") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 1, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "white") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(60, 60, 60, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+	}
+	if (nr == 2) {
+		if (strcmp(color, "off") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+
+		if (strcmp(color, "red") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 1, 0, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "blue") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 1, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "yellow") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 63, 63, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "pink") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 30, 0, 10, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "purple") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 20, 0, 40, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "orange") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 63, 20, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "green") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 1, 0, 0, 0, 0, dsPic);
+		}
+		if (strcmp(color, "white") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 60, 60, 60, 0, 0, 0, dsPic);
+		}
+	}
+	if (nr == 3) {
+		if (strcmp(color, "off") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 0, 0, dsPic);
+		}
+
+		if (strcmp(color, "red") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 1, 0, 0, dsPic);
+		}
+		if (strcmp(color, "blue") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 0, 1, dsPic);
+		}
+		if (strcmp(color, "yellow") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 63, 63, 0, dsPic);
+		}
+		if (strcmp(color, "pink") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 30, 0, 10, dsPic);
+		}
+		if (strcmp(color, "purple") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 20, 0, 40, dsPic);
+		}
+		if (strcmp(color, "orange") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 63, 20, 0, dsPic);
+		}
+		if (strcmp(color, "green") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 0, 1, 0, dsPic);
+		}
+		if (strcmp(color, "white") == 0) {
+			//printf("set red diode");
+
+			kh4_SetRGBLeds(0, 0, 0, 0, 0, 0, 60, 60, 60, dsPic);
+
+		}
+
+	}
 }
