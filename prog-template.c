@@ -184,10 +184,28 @@ int main(int argc, char * argv[]) {
 		exit(1);
 	}
 
+
+
+	char adr[100];
+	char junk[100];
+	char port[100];
+	FILE *file = fopen("/tmp/config.cfg","r");
+	
+	if(!file) {
+    	printf("Could not open file. Exiting application. Bye");
+    	return 1;
+	}
+
+    	fscanf(file,"%[^ \n\t\r]s",adr); //Get text
+       	fscanf(file,"%[ \n\t\r]s",junk); //Remove any 'white space' characters
+    	fscanf(file,"%[^ \n\t\r]s",port); //Get text
+
+
+	fclose(file);
 	/* Fill the socket address struct */
 	remote_addr.sin_family = AF_INET;
 	remote_addr.sin_port = htons(PORT);
-	inet_pton(AF_INET, "192.168.1.117", &remote_addr.sin_addr);
+	inet_pton(AF_INET, adr, &remote_addr.sin_addr);
 	bzero(&(remote_addr.sin_zero), 8);
 
 	/* Try to connect the remote */
